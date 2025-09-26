@@ -1,4 +1,4 @@
-// Redirect ICMP, ARP, and TCP packets to veth0. Pass everything else.
+// Redirect ICMP, ARP, and TCP (except SSH) packets to veth0. Pass everything else.
 
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
@@ -6,9 +6,9 @@
 #include <linux/if_ether.h>
 #include <linux/ip.h>
 #include <linux/in.h>
+#include <linux/tcp.h>
 
-// Replace this with the real ifindex of veth0 (check with: ip link show veth0)
-#define VETH_IFINDEX 3   
+#define VETH_IFINDEX 5   // Replace with your veth0 ifindex
 
 SEC("xdp")
 int xdp_redirect_packets(struct xdp_md *ctx)
@@ -23,7 +23,7 @@ int xdp_redirect_packets(struct xdp_md *ctx)
 
     __u16 h_proto = __bpf_ntohs(eth->h_proto);
 
-    // Redirect ARP directly at L2
+    // Redirect ARP at L2
     if (h_proto == ETH_P_ARP) {
         bpf_printk("Redirecting ARP packet to veth0\n");
         return bpf_redirect(VETH_IFINDEX, 0);
@@ -41,15 +41,22 @@ int xdp_redirect_packets(struct xdp_md *ctx)
             return bpf_redirect(VETH_IFINDEX, 0);
         }
 
-        // TCP
+        // TCP (exclude SSH)
         if (ip->protocol == IPPROTO_TCP) {
+            struct tcphdr *tcp = (void *)ip + ip->ihl*4;
+            if ((void *)(tcp + 1) > data_end)
+                return XDP_PASS;
+
+            // Skip SSH (port 22)
+            if (tcp->source == __bpf_htons(22) || tcp->dest == __bpf_htons(22))
+                return XDP_PASS;
+
             bpf_printk("Redirecting TCP packet to veth0\n");
             return bpf_redirect(VETH_IFINDEX, 0);
         }
     }
 
-    // Everything else passes
-    return XDP_PASS;
+    return XDP_PASS; // everything else passes
 }
 
 char LICENSE[] SEC("license") = "GPL";
