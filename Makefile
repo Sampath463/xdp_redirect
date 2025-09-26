@@ -1,14 +1,14 @@
-# ---- Makefile for xdp_redirect_packets ----
+# ---- Makefile for xdp_redirect ----
 
 BPF_CLANG ?= clang
 BPF_CFLAGS ?= -O2 -g -Wall -target bpf \
   -I/usr/include -I/usr/include/aarch64-linux-gnu
 
-# Interface where XDP will attach (change if needed)
+# Interface where XDP will attach
 IFACE ?= wlan0
 SEC ?= xdp
-OBJ := xdp_redirect_packets.o
-SRC := xdp_redirect_packets.c
+OBJ := xdp_redirect.o
+SRC := xdp_redirect.c
 
 all: $(OBJ)
 
